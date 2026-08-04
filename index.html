@@ -1,1 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Same Scale Maps</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="toolbar">
+    <div>
+      <h1>Same Scale Maps</h1>
+      <p>Compare several places at the same ground scale.</p>
+    </div>
+
+    <div class="controls">
+      <label for="feet-per-inch">
+        1 inch =
+        <input id="feet-per-inch" type="number" value="2000" min="1" step="100">
+        feet
+      </label>
+      <button id="apply-scale" type="button">Apply scale</button>
+      <button id="add-map" type="button">+ Add map</button>
+    </div>
+
+    <p id="status" class="status" aria-live="polite"></p>
+  </header>
+
+  <main id="map-grid" class="map-grid"></main>
+
+  <template id="map-panel-template">
+    <section class="map-card">
+      <div class="map-card-header">
+        <div class="search-slot"></div>
+        <button class="remove-map" type="button">Remove</button>
+      </div>
+      <div class="map" aria-label="Interactive comparison map"></div>
+      <div class="map-footer">
+        <span class="coordinates"></span>
+        <label>
+          View
+          <select class="map-type">
+            <option value="satellite">Satellite</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="roadmap">Road map</option>
+            <option value="terrain">Terrain</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </template>
+
+  <script src="app.js"></script>
+
+  <script
+    async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHmgcmvRfTMusrcuLT5_bDLbNAlMzflJk&loading=async&libraries=places&callback=initApp&v=weekly">
+  </script>
+</body>
+</html>
 
