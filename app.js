@@ -1,6 +1,12 @@
 const CSS_PIXELS_PER_INCH = 96;
 const EARTH_RADIUS_METERS = 6378137;
-const QUARTER_MILE_FEET = 1320;
+const FEET_PER_MILE = 5280;
+
+// OPTIONAL:
+// If you later create a Google Cloud Map ID with a custom Hybrid style,
+// paste the Map ID here. A Map ID is not secret.
+// Leave blank for the normal Google Hybrid map.
+const GOOGLE_MAP_ID = "";
 
 const DEFAULT_LOCATIONS = [
   { lat: 26.70577, lng: -81.94787 },
@@ -9,7 +15,39 @@ const DEFAULT_LOCATIONS = [
   { lat: 27.95058, lng: -82.45718 }
 ];
 
+const OVERLAY_DEFINITIONS = [
+  {
+    key: "quarter-circle",
+    label: "¼ mi circle",
+    miles: 0.25,
+    shape: "circle",
+    checked: true
+  },
+  {
+    key: "quarter-diamond",
+    label: "¼ mi diamond",
+    miles: 0.25,
+    shape: "diamond",
+    checked: false
+  },
+  {
+    key: "half-circle",
+    label: "½ mi circle",
+    miles: 0.5,
+    shape: "circle",
+    checked: false
+  },
+  {
+    key: "half-diamond",
+    label: "½ mi diamond",
+    miles: 0.5,
+    shape: "diamond",
+    checked: false
+  }
+];
+
 const panels = new Map();
+
 let GoogleMap;
 let PlaceAutocompleteElement;
 let nextPanelId = 1;
@@ -24,15 +62,26 @@ window.initApp = async function initApp() {
 
     installExtraControls();
 
-    document.getElementById("apply-scale").addEventListener("click", applyScaleToAllMaps);
-    document.getElementById("add-map").addEventListener("click", () => addMapPanel());
-    document.getElementById("feet-per-inch").addEventListener("change", applyScaleToAllMaps);
+    document
+      .getElementById("apply-scale")
+      .addEventListener("click", applyScaleToAllMaps);
+
+    document
+      .getElementById("add-map")
+      .addEventListener("click", () => addMapPanel());
+
+    document
+      .getElementById("feet-per-inch")
+      .addEventListener("change", applyScaleToAllMaps);
 
     DEFAULT_LOCATIONS.forEach((location) => addMapPanel(location));
 
-    setStatus("Ready. All maps are locked to the same ground scale.");
+    setStatus(
+      "Ready. All maps are locked to the same ground scale. Hybrid view is the default."
+    );
   } catch (error) {
     console.error(error);
+
     setStatus(
       "Google Maps could not load. Check the browser console, API key, billing, and key restrictions.",
       true
@@ -44,38 +93,45 @@ function installExtraControls() {
   const controls = document.querySelector(".controls");
   if (!controls) return;
 
-  // Avoid duplicates if the script is reloaded.
-  if (!document.getElementById("quarter-mile-shape")) {
-    const label = document.createElement("label");
-    label.setAttribute("for", "quarter-mile-shape");
-    label.className = "shape-control";
+  // Remove the old single overlay dropdown if an older script added it.
+  const oldShapeControl = document.querySelector(".shape-control");
+  const oldShapeHelper = document.querySelector(".shape-helper");
 
-    const text = document.createElement("span");
-    text.textContent = "¼-mile overlay";
+  if (oldShapeControl) oldShapeControl.remove();
+  if (oldShapeHelper) oldShapeHelper.remove();
 
-    const select = document.createElement("select");
-    select.id = "quarter-mile-shape";
-    select.innerHTML = `
-      <option value="circle">Circle</option>
-      <option value="square">Square</option>
-      <option value="none">None</option>
-    `;
+  if (!document.getElementById("overlay-controls")) {
+    const overlayGroup = document.createElement("fieldset");
+    overlayGroup.id = "overlay-controls";
+    overlayGroup.className = "overlay-control-group";
 
-    label.append(text, select);
-    controls.appendChild(label);
+    const legend = document.createElement("legend");
+    legend.textContent = "Distance overlays";
+    overlayGroup.appendChild(legend);
 
-    select.addEventListener("change", () => {
-      updateAllOverlays();
-      const choice = select.value;
+    for (const definition of OVERLAY_DEFINITIONS) {
+      const label = document.createElement("label");
+      label.className = "overlay-toggle";
 
-      if (choice === "circle") {
-        setStatus("Showing a ¼-mile radius circle on every map.");
-      } else if (choice === "square") {
-        setStatus("Showing a square extending ¼ mile from its center to each side.");
-      } else {
-        setStatus("¼-mile overlay hidden.");
-      }
-    });
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.id = `overlay-${definition.key}`;
+      checkbox.dataset.overlayKey = definition.key;
+      checkbox.checked = definition.checked;
+
+      const text = document.createElement("span");
+      text.textContent = definition.label;
+
+      label.append(checkbox, text);
+      overlayGroup.appendChild(label);
+
+      checkbox.addEventListener("change", () => {
+        updateAllOverlays();
+        setStatus("Distance overlays updated.");
+      });
+    }
+
+    controls.appendChild(overlayGroup);
   }
 
   if (!document.getElementById("export-maps")) {
@@ -83,9 +139,9 @@ function installExtraControls() {
     exportButton.id = "export-maps";
     exportButton.type = "button";
     exportButton.textContent = "Export / Print PDF";
-    controls.appendChild(exportButton);
 
     exportButton.addEventListener("click", exportMaps);
+    controls.appendChild(exportButton);
   }
 }
 
@@ -101,17 +157,15 @@ function getFeetPerInch() {
   return value;
 }
 
-function getSelectedShape() {
-  const select = document.getElementById("quarter-mile-shape");
-  return select ? select.value : "circle";
-}
-
 function zoomForScale(latitude, feetPerInch) {
   const metersPerPixel = (feetPerInch * 0.3048) / CSS_PIXELS_PER_INCH;
   const latitudeRadians = latitude * Math.PI / 180;
 
   const circumferenceAtLatitude =
-    2 * Math.PI * EARTH_RADIUS_METERS * Math.cos(latitudeRadians);
+    2 *
+    Math.PI *
+    EARTH_RADIUS_METERS *
+    Math.cos(latitudeRadians);
 
   const zoom = Math.log2(
     circumferenceAtLatitude / (256 * metersPerPixel)
@@ -120,10 +174,18 @@ function zoomForScale(latitude, feetPerInch) {
   return Math.max(0, Math.min(22, zoom));
 }
 
-function quarterMileRadiusPixels() {
-  // 1 inch on the page/screen = getFeetPerInch() feet.
-  // 96 CSS pixels = 1 CSS inch.
-  return (QUARTER_MILE_FEET / getFeetPerInch()) * CSS_PIXELS_PER_INCH;
+function radiusPixelsForMiles(miles) {
+  const feet = miles * FEET_PER_MILE;
+
+  return (
+    (feet / getFeetPerInch()) *
+    CSS_PIXELS_PER_INCH
+  );
+}
+
+function overlayIsEnabled(key) {
+  const checkbox = document.getElementById(`overlay-${key}`);
+  return Boolean(checkbox && checkbox.checked);
 }
 
 function addMapPanel(center) {
@@ -139,32 +201,63 @@ function addMapPanel(center) {
   const mapType = fragment.querySelector(".map-type");
 
   const id = nextPanelId++;
-  const initialCenter = center || firstMapCenter() || DEFAULT_LOCATIONS[0];
+  const initialCenter =
+    center ||
+    firstMapCenter() ||
+    DEFAULT_LOCATIONS[0];
 
   card.dataset.panelId = String(id);
   mapGrid.appendChild(fragment);
 
-  // Put the Google map and our scale overlay in the same positioned wrapper.
   const mapShell = document.createElement("div");
   mapShell.className = "map-shell";
+
   mapElement.parentNode.insertBefore(mapShell, mapElement);
   mapShell.appendChild(mapElement);
 
-  const overlay = document.createElement("div");
-  overlay.className = "distance-overlay";
-  overlay.setAttribute("aria-hidden", "true");
-  mapShell.appendChild(overlay);
+  const overlayElements = new Map();
 
-  const map = new GoogleMap(mapElement, {
+  for (const definition of OVERLAY_DEFINITIONS) {
+    const overlay = document.createElement("div");
+
+    overlay.className =
+      `distance-overlay overlay-${definition.shape} overlay-${definition.key}`;
+
+    overlay.dataset.overlayKey = definition.key;
+    overlay.setAttribute("aria-hidden", "true");
+
+    mapShell.appendChild(overlay);
+    overlayElements.set(definition.key, overlay);
+  }
+
+  const scaleBar = createScaleBar();
+  mapShell.appendChild(scaleBar.root);
+
+  const mapOptions = {
     center: initialCenter,
-    zoom: zoomForScale(initialCenter.lat, getFeetPerInch()),
-    mapTypeId: "satellite",
+    zoom: zoomForScale(
+      initialCenter.lat,
+      getFeetPerInch()
+    ),
+    mapTypeId: "hybrid",
     isFractionalZoomEnabled: true,
     mapTypeControl: false,
     streetViewControl: false,
     tilt: 0,
     heading: 0
-  });
+  };
+
+  if (GOOGLE_MAP_ID.trim()) {
+    mapOptions.mapId = GOOGLE_MAP_ID.trim();
+  }
+
+  const map = new GoogleMap(
+    mapElement,
+    mapOptions
+  );
+
+  // Keep the existing dropdown synchronized with the new default.
+  mapType.value = "hybrid";
 
   const autocomplete = new PlaceAutocompleteElement();
   autocomplete.placeholder = "Search for a place";
@@ -175,79 +268,148 @@ function addMapPanel(center) {
     card,
     map,
     coordinates,
-    overlay,
+    overlayElements,
+    scaleBar,
     adjustingScale: false
   };
 
   panels.set(id, panel);
 
-  autocomplete.addEventListener("gmp-select", async (event) => {
-    try {
-      const place = event.placePrediction.toPlace();
+  autocomplete.addEventListener(
+    "gmp-select",
+    async (event) => {
+      try {
+        const place =
+          event.placePrediction.toPlace();
 
-      await place.fetchFields({
-        fields: ["displayName", "formattedAddress", "location"]
-      });
+        await place.fetchFields({
+          fields: [
+            "displayName",
+            "formattedAddress",
+            "location"
+          ]
+        });
 
-      if (!place.location) {
-        setStatus("That search result did not include a location.", true);
-        return;
+        if (!place.location) {
+          setStatus(
+            "That search result did not include a location.",
+            true
+          );
+          return;
+        }
+
+        map.setCenter(place.location);
+        applyScaleToPanel(panel);
+
+        setStatus(
+          `Moved a map to ${
+            place.displayName ||
+            place.formattedAddress ||
+            "the selected place"
+          }.`
+        );
+      } catch (error) {
+        console.error(error);
+
+        setStatus(
+          "The selected place could not be loaded.",
+          true
+        );
       }
-
-      map.setCenter(place.location);
-      applyScaleToPanel(panel);
-
-      setStatus(
-        `Moved a map to ${
-          place.displayName || place.formattedAddress || "the selected place"
-        }.`
-      );
-    } catch (error) {
-      console.error(error);
-      setStatus("The selected place could not be loaded.", true);
     }
-  });
+  );
 
   map.addListener("idle", () => {
     keepPanelAtSelectedScale(panel);
     updatePanelFooter(panel);
   });
 
-  mapType.addEventListener("change", () => {
-    map.setMapTypeId(mapType.value);
-  });
-
-  removeButton.addEventListener("click", () => {
-    if (panels.size === 1) {
-      setStatus("Keep at least one map open.", true);
-      return;
+  mapType.addEventListener(
+    "change",
+    () => {
+      map.setMapTypeId(mapType.value);
     }
+  );
 
-    panels.delete(id);
-    card.remove();
-    setStatus("Map removed.");
-  });
+  removeButton.addEventListener(
+    "click",
+    () => {
+      if (panels.size === 1) {
+        setStatus(
+          "Keep at least one map open.",
+          true
+        );
+        return;
+      }
 
-  updatePanelOverlay(panel);
+      panels.delete(id);
+      card.remove();
+      setStatus("Map removed.");
+    }
+  );
+
+  updatePanelOverlays(panel);
+  updateScaleBar(panel);
   updatePanelFooter(panel);
 }
 
+function createScaleBar() {
+  const root = document.createElement("div");
+  root.className = "custom-scale-bar";
+  root.setAttribute(
+    "aria-label",
+    "One inch map scale bar"
+  );
+
+  const label = document.createElement("div");
+  label.className = "custom-scale-label";
+
+  const line = document.createElement("div");
+  line.className = "custom-scale-line";
+
+  root.append(label, line);
+
+  return {
+    root,
+    label,
+    line
+  };
+}
+
 function firstMapCenter() {
-  const firstPanel = panels.values().next().value;
+  const firstPanel =
+    panels.values().next().value;
+
   if (!firstPanel) return null;
 
-  const center = firstPanel.map.getCenter();
-  return center ? { lat: center.lat(), lng: center.lng() } : null;
+  const center =
+    firstPanel.map.getCenter();
+
+  return center
+    ? {
+        lat: center.lat(),
+        lng: center.lng()
+      }
+    : null;
 }
 
 function applyScaleToPanel(panel) {
-  const center = panel.map.getCenter();
+  const center =
+    panel.map.getCenter();
+
   if (!center) return;
 
   panel.adjustingScale = true;
-  panel.map.setZoom(zoomForScale(center.lat(), getFeetPerInch()));
 
-  updatePanelOverlay(panel);
+  panel.map.setZoom(
+    zoomForScale(
+      center.lat(),
+      getFeetPerInch()
+    )
+  );
+
+  updatePanelOverlays(panel);
+  updateScaleBar(panel);
   updatePanelFooter(panel);
 }
 
@@ -267,73 +429,147 @@ function keepPanelAtSelectedScale(panel) {
     return;
   }
 
-  const center = panel.map.getCenter();
-  const currentZoom = panel.map.getZoom();
+  const center =
+    panel.map.getCenter();
 
-  if (!center || typeof currentZoom !== "number") return;
+  const currentZoom =
+    panel.map.getZoom();
 
-  const targetZoom = zoomForScale(center.lat(), getFeetPerInch());
+  if (
+    !center ||
+    typeof currentZoom !== "number"
+  ) {
+    return;
+  }
 
-  if (Math.abs(currentZoom - targetZoom) > 0.01) {
+  const targetZoom =
+    zoomForScale(
+      center.lat(),
+      getFeetPerInch()
+    );
+
+  if (
+    Math.abs(
+      currentZoom - targetZoom
+    ) > 0.01
+  ) {
     panel.adjustingScale = true;
     panel.map.setZoom(targetZoom);
   }
 }
 
-function updatePanelOverlay(panel) {
-  const overlay = panel.overlay;
-  const shape = getSelectedShape();
+function updatePanelOverlays(panel) {
+  for (const definition of OVERLAY_DEFINITIONS) {
+    const overlay =
+      panel.overlayElements.get(
+        definition.key
+      );
 
-  if (!overlay) return;
+    if (!overlay) continue;
 
-  if (shape === "none") {
-    overlay.hidden = true;
-    return;
+    if (!overlayIsEnabled(definition.key)) {
+      overlay.hidden = true;
+      continue;
+    }
+
+    const radiusPx =
+      radiusPixelsForMiles(
+        definition.miles
+      );
+
+    overlay.hidden = false;
+
+    if (definition.shape === "circle") {
+      const diameterPx =
+        radiusPx * 2;
+
+      overlay.style.width =
+        `${diameterPx}px`;
+
+      overlay.style.height =
+        `${diameterPx}px`;
+    }
+
+    if (definition.shape === "diamond") {
+      /*
+        A rotated square with side s has
+        center-to-vertex distance s / sqrt(2).
+
+        Therefore:
+        s = radius * sqrt(2)
+
+        This makes the diamond's POINTS
+        exactly 1/4 mile or 1/2 mile
+        from the center.
+      */
+      const sidePx =
+        radiusPx * Math.SQRT2;
+
+      overlay.style.width =
+        `${sidePx}px`;
+
+      overlay.style.height =
+        `${sidePx}px`;
+    }
   }
-
-  const radiusPx = quarterMileRadiusPixels();
-  const diameterPx = radiusPx * 2;
-
-  overlay.hidden = false;
-  overlay.style.width = `${diameterPx}px`;
-  overlay.style.height = `${diameterPx}px`;
-
-  overlay.classList.toggle("is-circle", shape === "circle");
-  overlay.classList.toggle("is-square", shape === "square");
 }
 
 function updateAllOverlays() {
   for (const panel of panels.values()) {
-    updatePanelOverlay(panel);
+    updatePanelOverlays(panel);
   }
 }
 
+function updateScaleBar(panel) {
+  if (!panel.scaleBar) return;
+
+  panel.scaleBar.label.textContent =
+    `1" = ${getFeetPerInch().toLocaleString()}′`;
+
+  /*
+    This line is exactly 1 CSS inch.
+    It is physically exact in a PDF printed/exported
+    at 100% / Actual size.
+  */
+  panel.scaleBar.line.style.width = "1in";
+}
+
 function updatePanelFooter(panel) {
-  const center = panel.map.getCenter();
+  const center =
+    panel.map.getCenter();
+
   if (!center) return;
 
-  const quarterMilePaperInches = QUARTER_MILE_FEET / getFeetPerInch();
-
   panel.coordinates.textContent =
-    `${center.lat().toFixed(5)}, ${center.lng().toFixed(5)} · ` +
-    `1" = ${getFeetPerInch().toLocaleString()}′ · ` +
-    `¼-mi radius = ${quarterMilePaperInches.toFixed(3)}"`;
+    `${center.lat().toFixed(5)}, ` +
+    `${center.lng().toFixed(5)} · ` +
+    `1" = ${getFeetPerInch().toLocaleString()}′`;
 }
 
 function exportMaps() {
   applyScaleToAllMaps();
 
   setStatus(
-    "Opening print preview. Choose Save as PDF and use 100% / Actual size, not Fit."
+    "Opening print preview. Choose Save as PDF and use 100% / Actual size, not Fit to page."
   );
 
-  window.setTimeout(() => {
-    window.print();
-  }, 300);
+  window.setTimeout(
+    () => window.print(),
+    300
+  );
 }
 
-function setStatus(message, isError = false) {
-  const status = document.getElementById("status");
+function setStatus(
+  message,
+  isError = false
+) {
+  const status =
+    document.getElementById("status");
+
   status.textContent = message;
-  status.style.color = isError ? "#9b1c1c" : "#4b5563";
+
+  status.classList.toggle(
+    "status-error",
+    isError
+  );
 }
