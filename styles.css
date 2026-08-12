@@ -1,15 +1,31 @@
 :root {
   font-family: Arial, Helvetica, sans-serif;
-  color: #202124;
-  background: #f3f5f7;
+  color-scheme: dark;
+
+  --page-bg: #0d0f12;
+  --panel-bg: #15181d;
+  --panel-bg-2: #1b1f25;
+  --panel-border: #303640;
+  --control-bg: #20252c;
+  --control-hover: #2a3039;
+  --text: #f5f7fa;
+  --muted: #aeb6c2;
+  --danger: #ff8a8a;
+
+  color: var(--text);
+  background: var(--page-bg);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
+  min-height: 100%;
+  background: var(--page-bg);
+  color: var(--text);
 }
 
 button,
@@ -20,17 +36,19 @@ select {
 
 .toolbar {
   padding: 18px;
-  background: white;
-  border-bottom: 1px solid #d8dde3;
+  background: #111419;
+  border-bottom: 1px solid var(--panel-border);
 }
 
 .toolbar h1 {
   margin: 0 0 4px;
   font-size: 1.45rem;
+  color: var(--text);
 }
 
 .toolbar p {
   margin: 0;
+  color: var(--muted);
 }
 
 .controls {
@@ -41,31 +59,43 @@ select {
   margin-top: 14px;
 }
 
-.controls label {
+.controls > label {
   display: flex;
   align-items: center;
   gap: 7px;
   font-weight: 700;
+  color: var(--text);
 }
 
-.controls input {
+.controls input[type="number"] {
   width: 110px;
   padding: 8px;
-  border: 1px solid #aeb7c2;
+  border: 1px solid var(--panel-border);
   border-radius: 6px;
+  background: var(--control-bg);
+  color: var(--text);
 }
 
 button,
 select {
   padding: 8px 11px;
-  border: 1px solid #aeb7c2;
+  border: 1px solid var(--panel-border);
   border-radius: 6px;
-  background: white;
+  background: var(--control-bg);
+  color: var(--text);
   cursor: pointer;
 }
 
-button:hover {
-  background: #edf3ff;
+button:hover,
+select:hover {
+  background: var(--control-hover);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
 }
 
 #export-maps {
@@ -75,12 +105,62 @@ button:hover {
 .status {
   min-height: 1.25em;
   margin-top: 9px !important;
-  color: #4b5563;
+  color: var(--muted) !important;
 }
+
+.status.status-error {
+  color: var(--danger) !important;
+}
+
+/* ---- Overlay toggles ---- */
+
+.overlay-control-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  margin: 0;
+  padding: 7px 10px;
+
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+
+  background: var(--panel-bg-2);
+}
+
+.overlay-control-group legend {
+  padding: 0 5px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.overlay-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 2px 4px;
+
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 400;
+}
+
+.overlay-toggle input {
+  accent-color: #ffffff;
+}
+
+/* ---- Map grid ---- */
 
 .map-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(360px, 1fr)
+    );
+
   gap: 12px;
   padding: 12px;
 }
@@ -88,10 +168,14 @@ button:hover {
 .map-card {
   min-width: 0;
   overflow: hidden;
-  background: white;
-  border: 1px solid #d8dde3;
+
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 10px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+
+  box-shadow:
+    0 3px 14px
+    rgb(0 0 0 / 28%);
 }
 
 .map-card-header,
@@ -103,7 +187,8 @@ button:hover {
 }
 
 .map-card-header {
-  border-bottom: 1px solid #e2e6ea;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
 }
 
 .search-slot {
@@ -111,61 +196,178 @@ button:hover {
   min-width: 0;
 }
 
+/*
+  The Google Places widget owns much of its
+  internal appearance, but color-scheme lets
+  the browser prefer dark controls when supported.
+*/
 gmp-place-autocomplete {
   width: 100%;
+  color-scheme: dark;
 }
 
-/* IMPORTANT: wrapper for map + 1/4-mile overlay */
 .map-shell {
   position: relative;
   width: 100%;
   overflow: hidden;
+  background: #000;
 }
 
 .map {
   position: relative;
   z-index: 1;
+
   width: 100%;
   height: 390px;
-  background: #dfe5eb;
+
+  background: #050607;
 }
 
-/* The shape sits above the Google map and does not block panning/clicking. */
+/* ---- Distance shapes ---- */
+
 .distance-overlay {
   position: absolute;
-  z-index: 20;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  z-index: 20;
+
   pointer-events: none;
 
-  border: 6px dashed white;
+  border: 6px dashed #ffffff;
   box-sizing: border-box;
 
-  /* Dark halo keeps white dashes visible over light satellite imagery. */
   filter:
-    drop-shadow(1px 0 1px rgba(0, 0, 0, 0.95))
-    drop-shadow(-1px 0 1px rgba(0, 0, 0, 0.95))
-    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.95))
-    drop-shadow(0 -1px 1px rgba(0, 0, 0, 0.95));
-}
-
-.distance-overlay.is-circle {
-  border-radius: 50%;
-}
-
-.distance-overlay.is-square {
-  border-radius: 0;
+    drop-shadow(
+      1px 0 1px
+      rgb(0 0 0 / 95%)
+    )
+    drop-shadow(
+      -1px 0 1px
+      rgb(0 0 0 / 95%)
+    )
+    drop-shadow(
+      0 1px 1px
+      rgb(0 0 0 / 95%)
+    )
+    drop-shadow(
+      0 -1px 1px
+      rgb(0 0 0 / 95%)
+    );
 }
 
 .distance-overlay[hidden] {
   display: none;
 }
 
+.overlay-circle {
+  transform:
+    translate(-50%, -50%);
+
+  border-radius: 50%;
+}
+
+.overlay-diamond {
+  transform:
+    translate(-50%, -50%)
+    rotate(45deg);
+
+  border-radius: 0;
+}
+
+/*
+  Keep overlapping shapes readable.
+  Quarter mile sits above half mile.
+*/
+.overlay-half-circle,
+.overlay-half-diamond {
+  z-index: 18;
+}
+
+.overlay-quarter-circle,
+.overlay-quarter-diamond {
+  z-index: 21;
+}
+
+/* ---- Custom one-inch scale bar ---- */
+
+.custom-scale-bar {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  z-index: 30;
+
+  pointer-events: none;
+
+  padding: 7px 9px 9px;
+
+  border: 1px solid
+    rgb(255 255 255 / 45%);
+
+  border-radius: 6px;
+
+  background:
+    rgb(0 0 0 / 72%);
+
+  color: white;
+
+  box-shadow:
+    0 2px 7px
+    rgb(0 0 0 / 40%);
+}
+
+.custom-scale-label {
+  margin-bottom: 5px;
+
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+
+  white-space: nowrap;
+}
+
+.custom-scale-line {
+  position: relative;
+
+  /* JavaScript also sets this to 1in. */
+  width: 1in;
+  height: 8px;
+
+  border-top: 3px solid white;
+}
+
+.custom-scale-line::before,
+.custom-scale-line::after {
+  content: "";
+
+  position: absolute;
+  top: -5px;
+
+  width: 3px;
+  height: 9px;
+
+  background: white;
+}
+
+.custom-scale-line::before {
+  left: 0;
+}
+
+.custom-scale-line::after {
+  right: 0;
+}
+
+/* ---- Footer ---- */
+
 .map-footer {
   justify-content: space-between;
+
   min-height: 48px;
-  border-top: 1px solid #e2e6ea;
+
+  background: var(--panel-bg);
+  border-top: 1px solid var(--panel-border);
+
+  color: var(--muted);
   font-size: 0.85rem;
 }
 
@@ -178,10 +380,12 @@ gmp-place-autocomplete {
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+
+  color: var(--text);
 }
 
 .remove-map {
-  color: #9b1c1c;
+  color: #ff9a9a;
 }
 
 @media (max-width: 520px) {
@@ -197,25 +401,25 @@ gmp-place-autocomplete {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .overlay-control-group {
+    width: 100%;
+  }
 }
 
-/*
-  SCALE-SAFE PDF EXPORT
+/* ---- Scale-safe PDF output ---- */
 
-  A CSS inch is 96 CSS pixels. The map zoom calculation also uses 96 px/in,
-  so printing at 100% / Actual size preserves the selected 1" = X' scale.
-
-  Each map gets its own US Letter page.
-*/
 @page {
   size: letter portrait;
   margin: 0.5in;
 }
 
 @media print {
+  :root,
   html,
   body {
     background: white;
+    color: black;
   }
 
   .toolbar {
@@ -224,19 +428,26 @@ gmp-place-autocomplete {
 
   .map-grid {
     display: block;
+
     width: 7.5in;
-    margin: 0 auto;
+
     padding: 0;
+    margin: 0 auto;
   }
 
   .map-card {
     width: 7.5in;
-    margin: 0;
+    margin: 0 auto;
+
     border: 0;
     border-radius: 0;
+
     box-shadow: none;
+
     break-after: page;
     page-break-after: always;
+
+    overflow: visible;
   }
 
   .map-card:last-child {
@@ -258,8 +469,15 @@ gmp-place-autocomplete {
   }
 
   .map-footer {
+    min-height: 0;
+
     padding: 0.12in 0 0;
+
+    background: white;
     border: 0;
+
+    color: black;
+
     font-size: 9pt;
   }
 
@@ -267,7 +485,11 @@ gmp-place-autocomplete {
     display: none;
   }
 
-  .distance-overlay {
+  .distance-overlay,
+  .custom-scale-bar,
+  .custom-scale-line,
+  .custom-scale-line::before,
+  .custom-scale-line::after {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
