@@ -1,45 +1,38 @@
+const CSS_PIXELS_PER_INCH = 96;
+const EARTH_RADIUS_METERS = 6378137;
+const FEET_PER_MILE = 5280;
+
+// Every map option shown in each tile's View dropdown.
+// Standard Google views have no mapId.
+// Cloud-styled views use their Google Maps Platform Map ID.
 const MAP_VIEWS = {
   hybrid: {
     label: "Hybrid",
     mapTypeId: "hybrid"
   },
-
   satellite: {
     label: "Satellite",
     mapTypeId: "satellite"
   },
-
   roadmap: {
     label: "Road map",
     mapTypeId: "roadmap"
   },
-
   terrain: {
     label: "Terrain",
     mapTypeId: "terrain"
   },
-
-  whiteRoads: {
-    label: "White Roads Only",
-    mapTypeId: "hybrid",
-    mapId: "c5eb7c67b72d5ac28afc71e2"
-  },
-
-  secondStyle: {
-    label: "Dark Background White Roads",
+  darkGraphicsWhiteRoads: {
+    label: "Dark Graphics; White Roads",
     mapTypeId: "hybrid",
     mapId: "c5eb7c67b72d5ac2e1152e66"
+  },
+  roadsOnlyWhite: {
+    label: "Roads Only (White)",
+    mapTypeId: "hybrid",
+    mapId: "c5eb7c67b72d5ac28afc71e2"
   }
 };
-const CSS_PIXELS_PER_INCH = 96;
-const EARTH_RADIUS_METERS = 6378137;
-const FEET_PER_MILE = 5280;
-
-// OPTIONAL:
-// If you later create a Google Cloud Map ID with a custom Hybrid style,
-// paste the Map ID here. A Map ID is not secret.
-// Leave blank for the normal Google Hybrid map.
-const GOOGLE_MAP_ID = "";
 
 const DEFAULT_LOCATIONS = [
   { lat: 26.70577, lng: -81.94787 },
@@ -221,6 +214,88 @@ function overlayIsEnabled(key) {
   return Boolean(checkbox && checkbox.checked);
 }
 
+
+function populateMapTypeSelect(selectElement) {
+  selectElement.replaceChildren();
+
+  for (const [viewKey, view] of Object.entries(MAP_VIEWS)) {
+    const option = document.createElement("option");
+    option.value = viewKey;
+    option.textContent = view.label;
+    selectElement.appendChild(option);
+  }
+}
+
+function buildMapOptions(center, zoom, viewKey) {
+  const view = MAP_VIEWS[viewKey] || MAP_VIEWS.hybrid;
+
+  const options = {
+    center,
+    zoom,
+    mapTypeId: view.mapTypeId,
+    isFractionalZoomEnabled: true,
+    mapTypeControl: false,
+    streetViewControl: false,
+    tilt: 0,
+    heading: 0
+  };
+
+  if (view.mapId) {
+    options.mapId = view.mapId;
+  }
+
+  return options;
+}
+
+function attachPanelMapListeners(panel) {
+  panel.map.addListener("idle", () => {
+    keepPanelAtSelectedScale(panel);
+    updatePanelFooter(panel);
+  });
+}
+
+function switchMapView(panel, viewKey) {
+  const view = MAP_VIEWS[viewKey];
+
+  if (!view) {
+    setStatus("That map view is not configured.", true);
+    return;
+  }
+
+  const oldMap = panel.map;
+  const center = oldMap.getCenter();
+  const currentZoom = oldMap.getZoom();
+
+  if (!center) return;
+
+  const mapElement = panel.card.querySelector(".map");
+
+  // A 2D Google Map's Map ID cannot be changed after creation,
+  // so switching to/from a cloud style creates a fresh map in
+  // the same tile while preserving center and scale.
+  google.maps.event.clearInstanceListeners(oldMap);
+  mapElement.replaceChildren();
+
+  panel.map = new GoogleMap(
+    mapElement,
+    buildMapOptions(
+      center,
+      typeof currentZoom === "number"
+        ? currentZoom
+        : zoomForScale(center.lat(), getFeetPerInch()),
+      viewKey
+    )
+  );
+
+  panel.currentViewKey = viewKey;
+  attachPanelMapListeners(panel);
+
+  // Re-apply the exact selected ground scale after the map is recreated.
+  applyScaleToPanel(panel);
+
+  setStatus(`Map view changed to ${view.label}.`);
+}
+
 function addMapPanel(center) {
   const mapGrid = document.getElementById("map-grid");
   const template = document.getElementById("map-panel-template");
@@ -232,6 +307,8 @@ function addMapPanel(center) {
   const removeButton = fragment.querySelector(".remove-map");
   const coordinates = fragment.querySelector(".coordinates");
   const mapType = fragment.querySelector(".map-type");
+
+  populateMapTypeSelect(mapType);
 
   const id = nextPanelId++;
   const initialCenter =
@@ -266,31 +343,21 @@ function addMapPanel(center) {
   const scaleBar = createScaleBar();
   mapShell.appendChild(scaleBar.root);
 
-  const mapOptions = {
-    center: initialCenter,
-    zoom: zoomForScale(
-      initialCenter.lat,
-      getFeetPerInch()
-    ),
-    mapTypeId: "hybrid",
-    isFractionalZoomEnabled: true,
-    mapTypeControl: false,
-    streetViewControl: false,
-    tilt: 0,
-    heading: 0
-  };
-
-  if (GOOGLE_MAP_ID.trim()) {
-    mapOptions.mapId = GOOGLE_MAP_ID.trim();
-  }
+  const initialViewKey = "hybrid";
 
   const map = new GoogleMap(
     mapElement,
-    mapOptions
+    buildMapOptions(
+      initialCenter,
+      zoomForScale(
+        initialCenter.lat,
+        getFeetPerInch()
+      ),
+      initialViewKey
+    )
   );
 
-  // Keep the existing dropdown synchronized with the new default.
-  mapType.value = "hybrid";
+  mapType.value = initialViewKey;
 
   const autocomplete = new PlaceAutocompleteElement();
   autocomplete.placeholder = "Search for a place";
@@ -303,7 +370,8 @@ function addMapPanel(center) {
     coordinates,
     overlayElements,
     scaleBar,
-    adjustingScale: false
+    adjustingScale: false,
+    currentViewKey: initialViewKey
   };
 
   panels.set(id, panel);
@@ -331,8 +399,9 @@ function addMapPanel(center) {
           return;
         }
 
-        map.setCenter(place.location);
-panel.map.setCenter(place.location);
+        panel.map.setCenter(place.location);
+        applyScaleToPanel(panel);
+
         setStatus(
           `Moved a map to ${
             place.displayName ||
@@ -351,63 +420,15 @@ panel.map.setCenter(place.location);
     }
   );
 
-  map.addListener("idle", () => {
-    keepPanelAtSelectedScale(panel);
-    updatePanelFooter(panel);
-  });
+  attachPanelMapListeners(panel);
 
-mapType.addEventListener(
-  "change",
-  () => {
-    map.setMapTypeId(mapType.value);
-  }
-);
-function switchMapView(panel, viewKey) {
-  const view = MAP_VIEWS[viewKey];
-
-  if (!view) return;
-
-  const oldMap = panel.map;
-
-  const center = oldMap.getCenter();
-  const zoom = oldMap.getZoom();
-
-  const mapElement =
-    panel.card.querySelector(".map");
-
-  google.maps.event.clearInstanceListeners(oldMap);
-
-  mapElement.replaceChildren();
-
-  const options = {
-    center,
-    zoom,
-    mapTypeId: view.mapTypeId,
-
-    isFractionalZoomEnabled: true,
-    mapTypeControl: false,
-    streetViewControl: false,
-    tilt: 0,
-    heading: 0
-  };
-
-  if (view.mapId) {
-    options.mapId = view.mapId;
-  }
-
-  panel.map = new GoogleMap(
-    mapElement,
-    options
+  mapType.addEventListener(
+    "change",
+    () => {
+      switchMapView(panel, mapType.value);
+    }
   );
 
-  panel.map.addListener("idle", () => {
-    keepPanelAtSelectedScale(panel);
-    updatePanelFooter(panel);
-  });
-
-  applyScaleToPanel(panel);
-}
-  
   removeButton.addEventListener(
     "click",
     () => {

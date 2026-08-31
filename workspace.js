@@ -2,11 +2,15 @@
   const WORKSPACE_ID = "map-grid";
   const CARD_SELECTOR = ".map-card";
 
-  const MIN_COLUMN_WIDTH = 340;
-  const MAX_COLUMNS = 6;
+  // Horizontal sizing uses small grid units so width changes are much finer.
+  // A normal tile starts at 3 units wide, keeping roughly the same starting
+  // width as before, but each horizontal resize step is now about 100–120 px
+  // instead of roughly 340 px.
+  const MIN_COLUMN_WIDTH = 100;
+  const MAX_COLUMNS = 18;
   const GRID_GAP = 12;
 
-  const DEFAULT_COL_SPAN = 1;
+  const DEFAULT_COL_SPAN = 3;
   const DEFAULT_ROW_SPAN = 7;
 
   const MIN_ROW_SPAN = 5;
@@ -335,7 +339,10 @@
     syncColumnCount();
 
     const columns = getColumnCount();
-    const preferredWidth = columns >= 4 ? 2 : 1;
+    const preferredWidth = Math.min(
+      columns,
+      DEFAULT_COL_SPAN + 1
+    );
 
     getCards().forEach((card) => {
       setSpans(card, preferredWidth, 9);
