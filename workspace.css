@@ -1,30 +1,20 @@
 /*
-  SMART RESPONSIVE TILE WORKSPACE
-  -------------------------------
-  This REPLACES the floating / overlapping window behavior.
-
-  Main behavior:
-  - maps never overlap
-  - browser width automatically determines the number of columns
-  - dragging a map reorders the tiles
-  - resizing a map makes it span more/fewer grid columns or rows
-  - neighboring maps automatically move out of the way
+  SMART RESPONSIVE TILE WORKSPACE — V2
+  ------------------------------------
+  Resize handles are deliberately LARGE and visible.
 */
 
 #map-grid.smart-tile-workspace {
-  --tile-min-width: 340px;
-  --grid-row-height: 64px;
+  --workspace-columns: 2;
+  --grid-row-height: 56px;
   --grid-gap: 12px;
 
   display: grid !important;
 
   grid-template-columns:
     repeat(
-      auto-fit,
-      minmax(
-        min(100%, var(--tile-min-width)),
-        1fr
-      )
+      var(--workspace-columns),
+      minmax(0, 1fr)
     );
 
   grid-auto-rows: var(--grid-row-height);
@@ -51,7 +41,6 @@
   background-size: 22px 22px;
 }
 
-/* Undo old absolute-position window rules if workspace.css is replacing them. */
 #map-grid.smart-tile-workspace > .map-card,
 #map-grid.smart-tile-workspace > .smart-map-tile {
   position: relative !important;
@@ -73,24 +62,15 @@
     span var(--tile-cols, 1);
 
   grid-row:
-    span var(--tile-rows, 6);
+    span var(--tile-rows, 7);
 
   display: flex;
   flex-direction: column;
 
   overflow: hidden;
-
   touch-action: auto;
-
-  transition:
-    box-shadow 120ms ease,
-    outline-color 120ms ease;
 }
 
-/*
-  The map area takes all remaining height in the tile.
-  Making a tile taller therefore shows more north/south extent.
-*/
 #map-grid.smart-tile-workspace
   .smart-map-tile
   .map-card-header,
@@ -121,22 +101,18 @@
   min-height: 180px;
 }
 
-/* -------------------
-   DRAG / REORDER BAR
-   ------------------- */
-
 .tile-drag-bar {
   display: flex;
   align-items: center;
   gap: 8px;
 
-  height: 30px;
+  height: 32px;
   padding: 0 10px;
 
   border-bottom:
     1px solid var(--panel-border);
 
-  background: #0b0d10;
+  background: #090b0e;
   color: var(--muted);
 
   cursor: grab;
@@ -146,36 +122,28 @@
 }
 
 .tile-drag-bar:hover {
-  background: #10141a;
+  background: #12171d;
   color: var(--text);
 }
 
 .tile-grip {
   color: #ffffff;
-
-  font-size: 17px;
-  line-height: 1;
+  font-size: 18px;
 }
 
 .tile-title {
   color: var(--text);
-
   font-size: 0.82rem;
   font-weight: 700;
 }
 
 .tile-size-badge {
-  padding: 2px 5px;
+  padding: 2px 6px;
 
-  border:
-    1px solid
-    rgb(255 255 255 / 16%);
-
+  border: 1px solid rgb(255 255 255 / 18%);
   border-radius: 4px;
 
-  background:
-    rgb(255 255 255 / 7%);
-
+  background: rgb(255 255 255 / 8%);
   color: var(--muted);
 
   font-size: 0.68rem;
@@ -185,7 +153,6 @@
   margin-left: auto;
 
   color: var(--muted);
-
   font-size: 0.68rem;
 
   text-transform: uppercase;
@@ -194,64 +161,61 @@
 
 .tile-is-dragging {
   opacity: 0.72;
-
-  outline:
-    2px solid
-    rgb(255 255 255 / 65%);
-
-  box-shadow:
-    0 8px 28px
-    rgb(0 0 0 / 42%) !important;
+  outline: 2px solid rgb(255 255 255 / 70%);
 }
 
-/* -------------------
-   GRID RESIZE HANDLES
-   ------------------- */
+.tile-drop-target {
+  outline: 2px dashed rgb(255 255 255 / 70%);
+}
+
+/* BIG RESIZE HIT AREAS */
 
 .tile-resize-handle {
   position: absolute;
-  z-index: 500;
+  z-index: 10000;
 
   touch-action: none;
+  background: transparent;
+}
+
+.tile-resize-handle:hover,
+.tile-resize-handle.active-resize-handle {
+  background: rgb(255 255 255 / 13%);
 }
 
 .tile-resize-n {
   top: 0;
-  left: 18px;
-  right: 18px;
+  left: 28px;
+  right: 28px;
 
-  height: 7px;
-
+  height: 16px;
   cursor: ns-resize;
 }
 
 .tile-resize-s {
   bottom: 0;
-  left: 18px;
-  right: 18px;
+  left: 28px;
+  right: 28px;
 
-  height: 9px;
-
+  height: 16px;
   cursor: ns-resize;
 }
 
 .tile-resize-e {
-  top: 18px;
+  top: 28px;
   right: 0;
-  bottom: 18px;
+  bottom: 28px;
 
-  width: 9px;
-
+  width: 16px;
   cursor: ew-resize;
 }
 
 .tile-resize-w {
-  top: 18px;
+  top: 28px;
   left: 0;
-  bottom: 18px;
+  bottom: 28px;
 
-  width: 9px;
-
+  width: 16px;
   cursor: ew-resize;
 }
 
@@ -259,105 +223,69 @@
 .tile-resize-nw,
 .tile-resize-se,
 .tile-resize-sw {
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 30px;
 }
 
 .tile-resize-ne {
   top: 0;
   right: 0;
-
   cursor: nesw-resize;
 }
 
 .tile-resize-nw {
   top: 0;
   left: 0;
-
   cursor: nwse-resize;
 }
 
 .tile-resize-se {
   right: 0;
   bottom: 0;
-
   cursor: nwse-resize;
 }
 
 .tile-resize-sw {
   left: 0;
   bottom: 0;
-
   cursor: nesw-resize;
 }
 
-/* Visible little resize mark in lower-right corner. */
+.tile-resize-se::before,
 .tile-resize-se::after {
   content: "";
 
   position: absolute;
-  right: 4px;
-  bottom: 4px;
 
-  width: 9px;
-  height: 9px;
+  border-right: 2px solid rgb(255 255 255 / 70%);
+  border-bottom: 2px solid rgb(255 255 255 / 70%);
+}
 
-  border-right:
-    2px solid
-    rgb(255 255 255 / 48%);
+.tile-resize-se::before {
+  right: 5px;
+  bottom: 5px;
 
-  border-bottom:
-    2px solid
-    rgb(255 255 255 / 48%);
+  width: 13px;
+  height: 13px;
+}
+
+.tile-resize-se::after {
+  right: 10px;
+  bottom: 10px;
+
+  width: 6px;
+  height: 6px;
 }
 
 .tile-is-resizing {
-  outline:
-    2px solid
-    rgb(255 255 255 / 55%);
-}
-
-/* -------------------
-   RESPONSIVE TUNING
-   ------------------- */
-
-/*
-  Wide browser:
-  340px minimum lets more maps sit across the screen.
-  Resize one tile horizontally and it can span 2+ columns.
-*/
-
-@media (min-width: 1700px) {
-  #map-grid.smart-tile-workspace {
-    --tile-min-width: 360px;
-  }
-}
-
-@media (max-width: 1100px) {
-  #map-grid.smart-tile-workspace {
-    --tile-min-width: 320px;
-  }
+  outline: 2px solid rgb(255 255 255 / 70%);
 }
 
 @media (max-width: 720px) {
-  #map-grid.smart-tile-workspace {
-    --tile-min-width: 100%;
-    --grid-row-height: 60px;
-  }
-
   .tile-drag-hint {
     display: none;
   }
 }
-
-/* -------------------
-   PRINT / PDF
-   ------------------- */
-
-/*
-  Printing ignores the interactive dashboard grid
-  and hands control back to the scale-safe one-map-per-page layout.
-*/
 
 @media print {
   #map-grid.smart-tile-workspace {
