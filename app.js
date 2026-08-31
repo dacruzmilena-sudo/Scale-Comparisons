@@ -1,3 +1,4 @@
+const APP_VERSION = "custom-maps-v3";
 const CSS_PIXELS_PER_INCH = 96;
 const EARTH_RADIUS_METERS = 6378137;
 const FEET_PER_MILE = 5280;
@@ -103,7 +104,7 @@ window.initApp = async function initApp() {
     DEFAULT_LOCATIONS.forEach((location) => addMapPanel(location));
 
     setStatus(
-      "Ready. All maps are locked to the same ground scale. Hybrid view is the default."
+      "Ready — 6 map views loaded. All maps are locked to the same ground scale."
     );
   } catch (error) {
     console.error(error);
