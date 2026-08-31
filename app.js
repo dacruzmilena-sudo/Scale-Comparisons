@@ -1,3 +1,36 @@
+const MAP_VIEWS = {
+  hybrid: {
+    label: "Hybrid",
+    mapTypeId: "hybrid"
+  },
+
+  satellite: {
+    label: "Satellite",
+    mapTypeId: "satellite"
+  },
+
+  roadmap: {
+    label: "Road map",
+    mapTypeId: "roadmap"
+  },
+
+  terrain: {
+    label: "Terrain",
+    mapTypeId: "terrain"
+  },
+
+  whiteRoads: {
+    label: "White Roads Only",
+    mapTypeId: "hybrid",
+    mapId: "c5eb7c67b72d5ac28afc71e2"
+  },
+
+  secondStyle: {
+    label: "Dark Background White Roads",
+    mapTypeId: "hybrid",
+    mapId: "c5eb7c67b72d5ac2e1152e66"
+  }
+};
 const CSS_PIXELS_PER_INCH = 96;
 const EARTH_RADIUS_METERS = 6378137;
 const FEET_PER_MILE = 5280;
@@ -299,8 +332,7 @@ function addMapPanel(center) {
         }
 
         map.setCenter(place.location);
-        applyScaleToPanel(panel);
-
+panel.map.setCenter(place.location);
         setStatus(
           `Moved a map to ${
             place.displayName ||
@@ -324,13 +356,58 @@ function addMapPanel(center) {
     updatePanelFooter(panel);
   });
 
-  mapType.addEventListener(
-    "change",
-    () => {
-      map.setMapTypeId(mapType.value);
-    }
+mapType.addEventListener(
+  "change",
+  () => {
+    map.setMapTypeId(mapType.value);
+  }
+);
+function switchMapView(panel, viewKey) {
+  const view = MAP_VIEWS[viewKey];
+
+  if (!view) return;
+
+  const oldMap = panel.map;
+
+  const center = oldMap.getCenter();
+  const zoom = oldMap.getZoom();
+
+  const mapElement =
+    panel.card.querySelector(".map");
+
+  google.maps.event.clearInstanceListeners(oldMap);
+
+  mapElement.replaceChildren();
+
+  const options = {
+    center,
+    zoom,
+    mapTypeId: view.mapTypeId,
+
+    isFractionalZoomEnabled: true,
+    mapTypeControl: false,
+    streetViewControl: false,
+    tilt: 0,
+    heading: 0
+  };
+
+  if (view.mapId) {
+    options.mapId = view.mapId;
+  }
+
+  panel.map = new GoogleMap(
+    mapElement,
+    options
   );
 
+  panel.map.addListener("idle", () => {
+    keepPanelAtSelectedScale(panel);
+    updatePanelFooter(panel);
+  });
+
+  applyScaleToPanel(panel);
+}
+  
   removeButton.addEventListener(
     "click",
     () => {
