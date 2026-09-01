@@ -102,6 +102,33 @@ input:focus-visible {
   font-weight: 700;
 }
 
+.print-settings-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-bg-2);
+}
+
+.print-settings-group legend {
+  padding: 0 5px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.print-settings-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+
 .status {
   min-height: 1.25em;
   margin-top: 9px !important;
@@ -410,7 +437,7 @@ gmp-place-autocomplete {
 /* ---- Scale-safe PDF output ---- */
 
 @page {
-  size: letter portrait;
+  size: auto;
   margin: 0.5in;
 }
 
@@ -429,14 +456,14 @@ gmp-place-autocomplete {
   .map-grid {
     display: block;
 
-    width: 7.5in;
+    width: var(--print-map-width, 7.5in);
 
     padding: 0;
     margin: 0 auto;
   }
 
   .map-card {
-    width: 7.5in;
+    width: var(--print-map-width, 7.5in);
     margin: 0 auto;
 
     border: 0;
@@ -461,11 +488,11 @@ gmp-place-autocomplete {
 
   .map-shell,
   .map {
-    width: 7.5in !important;
+    width: var(--print-map-width, 7.5in) !important;
   }
 
   .map {
-    height: 8.8in !important;
+    height: var(--print-map-height, 9.65in) !important;
   }
 
   .map-footer {

@@ -291,7 +291,7 @@
   #map-grid.smart-tile-workspace {
     display: block !important;
 
-    width: 7.5in !important;
+    width: var(--print-map-width, 7.5in) !important;
     min-height: 0 !important;
 
     padding: 0 !important;
@@ -303,7 +303,7 @@
     > .smart-map-tile {
     display: flex !important;
 
-    width: 7.5in !important;
+    width: var(--print-map-width, 7.5in) !important;
     height: auto !important;
 
     grid-column: auto !important;
@@ -331,14 +331,14 @@
     .map-shell {
     flex: none !important;
 
-    width: 7.5in !important;
-    height: 8.8in !important;
+    width: var(--print-map-width, 7.5in) !important;
+    height: var(--print-map-height, 9.65in) !important;
   }
 
   #map-grid.smart-tile-workspace
     .smart-map-tile
     .map {
-    width: 7.5in !important;
-    height: 8.8in !important;
+    width: var(--print-map-width, 7.5in) !important;
+    height: var(--print-map-height, 9.65in) !important;
   }
 }

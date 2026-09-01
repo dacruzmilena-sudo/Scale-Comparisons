@@ -1,4 +1,4 @@
-const APP_VERSION = "custom-maps-v3";
+const APP_VERSION = "print-paper-v1";
 const CSS_PIXELS_PER_INCH = 96;
 const EARTH_RADIUS_METERS = 6378137;
 const FEET_PER_MILE = 5280;
@@ -25,8 +25,9 @@ const MAP_VIEWS = {
   },
   darkGraphicsWhiteRoads: {
     label: "Dark Graphics; White Roads",
-    mapTypeId: "hybrid",
-    mapId: "c5eb7c67b72d5ac2e1152e66"
+    mapTypeId: "roadmap",
+    mapId: "c5eb7c67b72d5ac2e1152e66",
+    colorScheme: "DARK"
   },
   roadsOnlyWhite: {
     label: "Roads Only (White)",
@@ -34,6 +35,20 @@ const MAP_VIEWS = {
     mapId: "c5eb7c67b72d5ac28afc71e2"
   }
 };
+
+// Paper sizes used by the site BEFORE opening the browser print dialog.
+// This lets Google Maps redraw to the actual printable dimensions first.
+const PRINT_PAPERS = {
+  letter: { label: "Letter 8.5 × 11", width: 8.5, height: 11 },
+  tabloid: { label: "Tabloid 11 × 17", width: 11, height: 17 },
+  archC: { label: "ARCH C 18 × 24", width: 18, height: 24 },
+  archD: { label: "ARCH D 24 × 36", width: 24, height: 36 },
+  archE: { label: "ARCH E 36 × 48", width: 36, height: 48 }
+};
+
+const PRINT_MARGIN_IN = 0.5;
+const PRINT_FOOTER_ALLOWANCE_IN = 0.35;
+let printRestoreState = null;
 
 const DEFAULT_LOCATIONS = [
   { lat: 26.70577, lng: -81.94787 },
@@ -161,6 +176,52 @@ function installExtraControls() {
     controls.appendChild(overlayGroup);
   }
 
+  if (!document.getElementById("print-settings")) {
+    const printGroup = document.createElement("fieldset");
+    printGroup.id = "print-settings";
+    printGroup.className = "print-settings-group";
+
+    const legend = document.createElement("legend");
+    legend.textContent = "Print sheet";
+    printGroup.appendChild(legend);
+
+    const paperLabel = document.createElement("label");
+    paperLabel.textContent = "Paper";
+
+    const paperSelect = document.createElement("select");
+    paperSelect.id = "print-paper";
+
+    for (const [paperKey, paper] of Object.entries(PRINT_PAPERS)) {
+      const option = document.createElement("option");
+      option.value = paperKey;
+      option.textContent = paper.label;
+      paperSelect.appendChild(option);
+    }
+
+    paperSelect.value = "letter";
+    paperLabel.appendChild(paperSelect);
+
+    const orientationLabel = document.createElement("label");
+    orientationLabel.textContent = "Orientation";
+
+    const orientationSelect = document.createElement("select");
+    orientationSelect.id = "print-orientation";
+
+    const portrait = document.createElement("option");
+    portrait.value = "portrait";
+    portrait.textContent = "Portrait";
+
+    const landscape = document.createElement("option");
+    landscape.value = "landscape";
+    landscape.textContent = "Landscape";
+
+    orientationSelect.append(portrait, landscape);
+    orientationLabel.appendChild(orientationSelect);
+
+    printGroup.append(paperLabel, orientationLabel);
+    controls.appendChild(printGroup);
+  }
+
   if (!document.getElementById("export-maps")) {
     const exportButton = document.createElement("button");
     exportButton.id = "export-maps";
@@ -243,6 +304,11 @@ function buildMapOptions(center, zoom, viewKey) {
 
   if (view.mapId) {
     options.mapId = view.mapId;
+  }
+
+  if (view.colorScheme) {
+    // Color scheme, like mapId, must be chosen when the 2D map is created.
+    options.colorScheme = view.colorScheme;
   }
 
   return options;
@@ -645,18 +711,195 @@ function updatePanelFooter(panel) {
     `1" = ${getFeetPerInch().toLocaleString()}′`;
 }
 
-function exportMaps() {
-  applyScaleToAllMaps();
+function getSelectedPrintSheet() {
+  const paperKey =
+    document.getElementById("print-paper")?.value || "letter";
+
+  const orientation =
+    document.getElementById("print-orientation")?.value || "portrait";
+
+  const paper = PRINT_PAPERS[paperKey] || PRINT_PAPERS.letter;
+
+  const pageWidth =
+    orientation === "landscape" ? paper.height : paper.width;
+
+  const pageHeight =
+    orientation === "landscape" ? paper.width : paper.height;
+
+  const mapWidth = Math.max(
+    1,
+    pageWidth - PRINT_MARGIN_IN * 2
+  );
+
+  const mapHeight = Math.max(
+    1,
+    pageHeight - PRINT_MARGIN_IN * 2 - PRINT_FOOTER_ALLOWANCE_IN
+  );
+
+  return {
+    paper,
+    orientation,
+    pageWidth,
+    pageHeight,
+    mapWidth,
+    mapHeight
+  };
+}
+
+function installDynamicPageRule(sheet) {
+  let style = document.getElementById("dynamic-print-page-style");
+
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "dynamic-print-page-style";
+    document.head.appendChild(style);
+  }
+
+  style.textContent = `
+    @page {
+      size: ${sheet.pageWidth}in ${sheet.pageHeight}in;
+      margin: ${PRINT_MARGIN_IN}in;
+    }
+  `;
+}
+
+function rememberPrintState() {
+  if (printRestoreState) return;
+
+  printRestoreState = Array.from(panels.values()).map((panel) => {
+    const center = panel.map.getCenter();
+
+    return {
+      panel,
+      center: center
+        ? { lat: center.lat(), lng: center.lng() }
+        : null
+    };
+  });
+}
+
+function restoreAfterPrint() {
+  if (!printRestoreState) return;
+
+  document.body.classList.remove("print-preparing");
+
+  const prepStyle = document.getElementById("print-prep-style");
+  if (prepStyle) prepStyle.remove();
+
+  for (const item of printRestoreState) {
+    if (item.center) {
+      item.panel.map.setCenter(item.center);
+    }
+
+    google.maps.event.trigger(item.panel.map, "resize");
+    applyScaleToPanel(item.panel);
+  }
+
+  printRestoreState = null;
+}
+
+function waitForMapIdle(panel, timeoutMs = 1800) {
+  return new Promise((resolve) => {
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+
+    google.maps.event.addListenerOnce(panel.map, "idle", finish);
+    window.setTimeout(finish, timeoutMs);
+  });
+}
+
+async function prepareMapsForPrint(sheet) {
+  rememberPrintState();
+  installDynamicPageRule(sheet);
+
+  document.documentElement.style.setProperty(
+    "--print-map-width",
+    `${sheet.mapWidth}in`
+  );
+
+  document.documentElement.style.setProperty(
+    "--print-map-height",
+    `${sheet.mapHeight}in`
+  );
+
+  const widthPx = sheet.mapWidth * CSS_PIXELS_PER_INCH;
+  const heightPx = sheet.mapHeight * CSS_PIXELS_PER_INCH;
+
+  let prepStyle = document.getElementById("print-prep-style");
+
+  if (!prepStyle) {
+    prepStyle = document.createElement("style");
+    prepStyle.id = "print-prep-style";
+    document.head.appendChild(prepStyle);
+  }
+
+  // Resize the LIVE maps before opening print preview so Google actually
+  // renders the extra geographic extent available on the selected sheet.
+  prepStyle.textContent = `
+    body.print-preparing #map-grid.smart-tile-workspace {
+      display: block !important;
+      overflow: visible !important;
+    }
+
+    body.print-preparing #map-grid.smart-tile-workspace > .smart-map-tile {
+      width: ${widthPx}px !important;
+      height: auto !important;
+      margin: 12px auto !important;
+      display: flex !important;
+    }
+
+    body.print-preparing .smart-map-tile .map-shell,
+    body.print-preparing .smart-map-tile .map {
+      width: ${widthPx}px !important;
+      height: ${heightPx}px !important;
+      flex: none !important;
+    }
+  `;
+
+  document.body.classList.add("print-preparing");
+
+  const idlePromises = [];
+
+  for (const item of printRestoreState) {
+    const { panel, center } = item;
+
+    google.maps.event.trigger(panel.map, "resize");
+
+    if (center) {
+      panel.map.setCenter(center);
+    }
+
+    applyScaleToPanel(panel);
+    idlePromises.push(waitForMapIdle(panel));
+  }
+
+  await Promise.all(idlePromises);
+}
+
+async function exportMaps() {
+  const sheet = getSelectedPrintSheet();
 
   setStatus(
-    "Opening print preview. Choose Save as PDF and use 100% / Actual size, not Fit to page."
+    `Preparing ${sheet.paper.label} ${sheet.orientation}. ` +
+    "The maps are redrawing to the printable extent at the selected scale…"
   );
 
-  window.setTimeout(
-    () => window.print(),
-    300
+  await prepareMapsForPrint(sheet);
+
+  setStatus(
+    `Print ready: ${sheet.paper.label} ${sheet.orientation}. ` +
+    "In the print dialog, use the SAME paper/orientation and 100% / Actual size."
   );
+
+  window.setTimeout(() => window.print(), 150);
 }
+
+window.addEventListener("afterprint", restoreAfterPrint);
 
 function setStatus(
   message,
